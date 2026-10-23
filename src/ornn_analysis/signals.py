@@ -95,8 +95,15 @@ def supply_pipeline(construction: pd.Series, asof) -> dict:
     }
 
 
-def memory(prices: pd.DataFrame, memory_stocks: pd.DataFrame, asof) -> dict:
-    """Memory premium (same chip, more memory) and memory-maker share prices."""
+def memory(prices: pd.DataFrame, memory_prices: pd.DataFrame, asof) -> dict:
+    """Memory premium (same chip, more memory) and Ornn memory spot prices.
+
+    Changes are measured against the value on the calendar date 30 / 90 / 365 days earlier
+    (the latest value on or before it), so gaps in a series don't stretch the window.
+    """
+    def back(s: pd.Series, days: int):
+        return s.asof(s.index[-1] - pd.Timedelta(days=days))
+
     p = _upto(prices, asof).ffill()
     out = {}
     for name, hi, lo in [("H200/H100", "H200", "H100 SXM"), ("RTXPRO6000/RTX5090", "RTX PRO 6000 WS", "RTX 5090")]:
@@ -104,12 +111,18 @@ def memory(prices: pd.DataFrame, memory_stocks: pd.DataFrame, asof) -> dict:
             ratio = (p[hi] / p[lo]).rolling(14, min_periods=7).mean().dropna()
             if len(ratio) > 90:
                 out[f"premium_{name}"] = round(float(ratio.iloc[-1]), 2)
-                out[f"premium_{name}_90d_change_%"] = round(_pct(ratio.iloc[-1], ratio.iloc[-91]), 1)
-    m = _upto(memory_stocks, asof).ffill().dropna(how="all")
-    if len(m) > 90:
-        basket = (m / m.iloc[0]).mean(axis=1)
-        out["memory_stocks_30d_%"] = round(_pct(basket.iloc[-1], basket.iloc[-31]), 1)
-        out["memory_stocks_90d_%"] = round(_pct(basket.iloc[-1], basket.iloc[-91]), 1)
+                out[f"premium_{name}_90d_change_%"] = round(_pct(ratio.iloc[-1], back(ratio, 90)), 1)
+    spot = {}
+    for name in memory_prices.columns:
+        s = memory_prices[name].loc[:pd.Timestamp(asof)].dropna()
+        if len(s) < 2:
+            continue
+        spot[name] = {"price": round(float(s.iloc[-1]), 2),
+                      "change_30d_%": round(_pct(s.iloc[-1], back(s, 30)), 1),
+                      "change_90d_%": round(_pct(s.iloc[-1], back(s, 90)), 1),
+                      "change_1y_%": round(_pct(s.iloc[-1], back(s, 365)), 1),
+                      "last_date": s.index[-1].date().isoformat()}
+    out["spot"] = spot
     return out
 
 

@@ -7,6 +7,13 @@ from Yahoo Finance.
 # GPUs available from the Ornn API.
 GPUS = ["H100 SXM", "H200", "B200", "A100 SXM4", "RTX 5090", "RTX PRO 6000 WS"]
 
+# Ornn memory spot prices used in the daily report: display name -> Ornn memory id.
+# Commodity DRAM, not HBM, but it reflects the same shortage (HBM takes DRAM production capacity).
+MEMORY = {
+    "DDR5 16Gb chip": "mem_ddr5_16gb",
+    "DDR5 server module (RDIMM 32GB)": "mem_ddr5_rdimm_32gb",
+}
+
 # name: (source, Yahoo ticker, group, why it might matter)
 DRIVERS = {
     # Energy: the starting hypothesis

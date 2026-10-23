@@ -17,13 +17,12 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from . import signals
-from .data import LOADERS, load_census_construction
+from .data import LOADERS, load_census_construction, load_ornn_memory
 from .explore import load_gpus, load_utilization
-from .series import DRIVERS
+from .series import DRIVERS, MEMORY
 
 log = logging.getLogger("ornn_daily")
 ENERGY = ["wti_oil", "brent_oil", "henry_hub_gas"]
-MEMORY = ["micron", "sk_hynix", "samsung"]
 
 
 def _try(name, fn, failures):
@@ -48,7 +47,12 @@ def load_all() -> tuple[dict, list[str]]:
         return pd.DataFrame(cols)
 
     data["energy"] = drivers(ENERGY)
-    data["memory"] = drivers(MEMORY)
+    mem = {}
+    for name, memory_id in MEMORY.items():
+        s = _try(f"ornn_memory_{memory_id}", lambda: load_ornn_memory(memory_id), failures)
+        if s is not None:
+            mem[name] = s
+    data["memory"] = pd.DataFrame(mem)
     data["construction"] = _try("census_data_center", lambda: load_census_construction("Data center"), failures)
     return data, failures
 
@@ -117,7 +121,14 @@ def summary(r: dict) -> list[str]:
         before = m["premium_H200/H100"] / (1 + m["premium_H200/H100_90d_change_%"] / 100)
         now = m["premium_H200/H100"]
         trend = "up from" if round(now, 1) > round(before, 1) else "down from" if round(now, 1) < round(before, 1) else "about the same as"
-        lines.append(f"An H200 costs {now:.1f}x an H100 (same chip, more memory), {trend} {before:.1f}x three months ago.")
+        line = f"An H200 costs {now:.1f}x an H100 (same chip, more memory), {trend} {before:.1f}x three months ago."
+        chip = m.get("spot", {}).get("DDR5 16Gb chip")
+        if chip:
+            c30 = chip["change_30d_%"]
+            move = "still rising" if c30 > 3 else "falling" if c30 < -3 else "flat"
+            line = (f"Memory prices are {move}: DDR5 spot ${chip['price']:.2f} ({c30:+.0f}% in 30 days, "
+                    f"{chip['change_1y_%']:+.0f}% in a year). ") + line
+        lines.append(line)
     if not r["energy"].empty:
         lasting = r["energy"].index[r["energy"].verdict == "possible signal - check"].tolist()
         lines.append("Oil and gas: possible link from " + ", ".join(ENERGY_LABEL.get(d, d) for d in lasting)
@@ -169,17 +180,24 @@ def render(r: dict, failures: list[str]) -> str:
     else:
         out.append("   Not available today.")
 
-    section(3, "Memory", "Each pair below is the same chip with more memory, so the price ratio shows "
-                         "what the market pays for memory.")
+    section(3, "Memory",
+            "Ornn memory spot prices (commodity DRAM: not the HBM on GPUs, but it reflects the same shortage, "
+            "since HBM takes DRAM production capacity), and price ratios of GPU pairs that are the same chip "
+            "with more memory.")
     m = r["memory"]
     if m:
         for key, label in [("H200/H100", "H200 vs H100"), ("RTXPRO6000/RTX5090", "RTX PRO 6000 vs RTX 5090")]:
             if f"premium_{key}" in m:
                 before = m[f"premium_{key}"] / (1 + m[f"premium_{key}_90d_change_%"] / 100)
                 out.append(f"   {label:<27}{m[f'premium_{key}']:.2f}x   (three months ago: {before:.2f}x)")
-        if "memory_stocks_30d_%" in m:
-            out.append(f"   {'Memory-maker shares':<27}{m['memory_stocks_30d_%']:+.0f}% in 30 days, "
-                       f"{m['memory_stocks_90d_%']:+.0f}% in 90 days   (Micron, SK hynix, Samsung)")
+        if m.get("spot"):
+            out.append("")
+            out.append(f"   {'Spot price':<33}{'Now':>10}{'30 days':>10}{'90 days':>10}{'1 year':>10}")
+            def pct(x):
+                return f"{x:+.0f}%" if x == x else "n/a"   # NaN: series too short for this window
+            for name, v in m["spot"].items():
+                out.append(f"   {name:<33}{'$' + format(v['price'], ',.2f'):>10}{pct(v['change_30d_%']):>10}"
+                           f"{pct(v['change_90d_%']):>10}{pct(v['change_1y_%']):>10}")
     else:
         out.append("   Not available today.")
 
@@ -254,8 +272,10 @@ def to_json(r: dict, failures: list[str]) -> dict:
         "h200_vs_h100_change_90d_pct": _num(m.get("premium_H200/H100_90d_change_%")),
         "rtxpro6000_vs_rtx5090_price_ratio": _num(m.get("premium_RTXPRO6000/RTX5090")),
         "rtxpro6000_vs_rtx5090_change_90d_pct": _num(m.get("premium_RTXPRO6000/RTX5090_90d_change_%")),
-        "memory_stocks_change_30d_pct": _num(m.get("memory_stocks_30d_%")),
-        "memory_stocks_change_90d_pct": _num(m.get("memory_stocks_90d_%")),
+        "spot_prices": [{"name": name, "ornn_memory_id": MEMORY.get(name), "price_usd": _num(v["price"]),
+                         "change_30d_pct": _num(v["change_30d_%"]), "change_90d_pct": _num(v["change_90d_%"]),
+                         "change_1y_pct": _num(v["change_1y_%"]), "last_date": v["last_date"]}
+                        for name, v in m.get("spot", {}).items()],
     } if m else None
     energy = [{
         "driver": d,

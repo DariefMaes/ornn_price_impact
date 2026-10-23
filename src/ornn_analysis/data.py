@@ -79,6 +79,14 @@ def load_ornn_utilization(gpu: str, start: str = "2024-01-01") -> pd.Series:
     return _cached(f"ornn_util_{gpu}", fetch)
 
 
+def load_ornn_memory(memory_id: str) -> pd.Series:
+    """Daily Ornn memory spot price in $ (e.g. mem_ddr5_16gb). List of ids: GET /api/memory-types."""
+    def fetch():
+        rows = _ornn_get(f"https://api.ornnai.com/api/memory/{quote(memory_id)}/history", {"limit": 10000})
+        return _clean(pd.DataFrame(rows).set_index("date")["price"])
+    return _cached(f"ornn_memory_{memory_id}", fetch)
+
+
 # ---------------------------------------------------------------- Census
 
 def load_census_construction(column: str = "Data center") -> pd.Series:

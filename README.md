@@ -53,7 +53,7 @@ The report opens with a short summary, followed by five sections:
 | ----------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1. How full is each GPU market?** | Per GPU: price, 7-day average utilization, spare capacity, 4-week change, status | The main signal. **Full** (85%+ used) is where prices have jumped before; **Filling up** (75-85% and up 3+ points in 4 weeks) is the early warning; **Busy** is 75-85%; **Room available** is under 75%. A 7-day average is used because demand peaks mid-week and drops at weekends. |
 | **2. Supply pipeline**              | Census data-center construction growth, and what it points to ~9 months ahead    | Faster construction has been followed by a looser market, slower construction by a tighter one. Observed over one cycle, so treat the date as a forecast to check.                                                                                                                    |
-| **3. Memory**                       | Price ratios of same-chip pairs with different memory; memory-maker share prices | A rising ratio means memory scarcity is being priced in.                                                                                                                                                                                                                              |
+| **3. Memory** | Ornn DDR5 spot prices (chip and server module); price ratios of same-chip GPU pairs with different memory | Rising DDR5 prices mean the memory shortage that started in Oct 2025 is still going; a rising GPU ratio means memory scarcity is being priced into GPU rentals. DDR5 is commodity DRAM, not the HBM on GPUs, but reflects the same shortage. |
 | **4. Energy check**                 | Whether oil or gas moves before H100 prices (weekly, last two years)             | A real link must beat chance and show up in both years. Kept so the conclusion updates itself if that changes.                                                                                                                                                                        |
 | **5. Data quality**                 | Large price moves that utilization doesn't explain; feeds that stopped updating  | Review before using the numbers. Two past jumps (Aug 2024, Dec 2025) looked like index artifacts.                                                                                                                                                                                     |
 
@@ -63,7 +63,7 @@ The report opens with a short summary, followed by five sections:
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `src/ornn_analysis/daily.py`   | The daily pipeline: load, compute, print the report                                                               |
 | `src/ornn_analysis/signals.py` | Signal logic. Pure functions, each computed "as of" a date (no look-ahead)                                        |
-| `src/ornn_analysis/data.py`    | Loaders for the three sources: Ornn (prices, hourly, utilization), Census, Yahoo. Cached for 24h in `data/cache/` |
+| `src/ornn_analysis/data.py`    | Loaders for the three sources: Ornn (GPU prices, hourly, utilization, memory), Census, Yahoo. Cached for 24h in `data/cache/` |
 | `src/ornn_analysis/series.py`  | Which GPUs and drivers to load. **Add or remove series here.**                                                    |
 | `src/ornn_analysis/explore.py` | Helpers for the research notebook                                                                                 |
 | `notebooks/explore.ipynb`      | The research: every finding in FINDINGS.md is reproduced in a numbered section                                    |
@@ -73,6 +73,6 @@ The report opens with a short summary, followed by five sections:
 
 | Source                           | Used for                                                                | Access                  |
 | -------------------------------- | ----------------------------------------------------------------------- | ----------------------- |
-| Ornn Data API                    | GPU price indices (daily, hourly), utilization                          | `ORNN_API_KEY`          |
+| Ornn Data API                    | GPU price indices (daily, hourly), utilization, memory spot prices      | `ORNN_API_KEY`          |
 | Census C30 construction spending | Data-center construction                                                | Public spreadsheet      |
-| Yahoo Finance                    | Oil and gas futures, interest rates, VIX, memory-maker and other shares | Public (via `yfinance`) |
+| Yahoo Finance                    | Oil and gas futures, interest rates, VIX, stock prices (notebook)       | Public (via `yfinance`) |
