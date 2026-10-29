@@ -94,7 +94,7 @@ def _energy_sentence(name: str, row) -> str:
             f"produces {row['chance_any_lag_%']:.0f}% of the time.")
 
 
-def summary(r: dict) -> list[str]:
+def summary(r: dict, quality_section: str = "section 5") -> list[str]:
     sc = r["scarcity"]
     full = sc.index[sc.status == "tight"].tolist()
     filling = sc.index[sc.status == "tightening"].tolist()
@@ -111,8 +111,8 @@ def summary(r: dict) -> list[str]:
     lines = [line]
     if r["supply"]:
         s = r["supply"]
-        outlook = {"accelerating": f"the market should loosen around {s['effect_month']}",
-                   "slowing": f"the market should tighten around {s['effect_month']}",
+        outlook = {"accelerating": "the market should loosen in the coming months",
+                   "slowing": "the market should tighten in the coming months",
                    "steady": "no change in market tightness is expected"}[s["direction"]]
         lines.append(f"Data-center construction is {s['direction']} ({s['growth_yoy_%']:+.0f}% vs a year earlier). "
                      f"If the past pattern holds, {outlook}.")
@@ -135,7 +135,7 @@ def summary(r: dict) -> list[str]:
                      + ", check the energy section." if lasting else "Oil and gas: no lasting link to GPU prices.")
     if r["quality"]:
         n = len(r["quality"])
-        lines.append(f"{n} data-quality {'note' if n == 1 else 'notes'} to review (section 5).")
+        lines.append(f"{n} data-quality {'note' if n == 1 else 'notes'} to review ({quality_section}).")
     return lines
 
 
@@ -174,9 +174,11 @@ def render(r: dict, failures: list[str]) -> str:
                          f"{s['growth_yoy_%']:+.0f}% vs a year earlier (three months before it was "
                          f"{s['growth_yoy_3m_ago_%']:+.0f}%). Construction is {s['direction']}.", "   "))
         out.append("")
-        out.extend(_wrap(f"In the past, faster construction was followed by a looser market about 9 months later, "
-                         f"and slower construction by a tighter one. That points to {s['points_to']}. "
-                         f"This is based on one cycle, so treat it as a forecast to check.", "   "))
+        implied = {"accelerating": "a looser market", "slowing": "a tighter market",
+                   "steady": "no change in how tight the market is"}[s["direction"]]
+        out.extend(_wrap(f"In the one past cycle, faster construction was followed by a looser market 6-9 months later, "
+                         f"and slower construction by a tighter one. That points to {implied} in the coming months. "
+                         f"The exact timing isn't known, so treat this as a pattern to watch.", "   "))
     else:
         out.append("   Not available today.")
 

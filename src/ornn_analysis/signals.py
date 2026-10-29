@@ -70,8 +70,8 @@ def supply_pipeline(construction: pd.Series, asof) -> dict:
 
     Census publishes each month's figure around the first business day two months later
     (August data on ~1 October), so only months published by `asof` are used. This keeps
-    --asof runs honest. Faster growth has historically been followed by looser
-    utilization ~9 months later.
+    --asof runs honest. In the one cycle observed, faster growth was followed by looser
+    utilization 6-9 months later; the timing isn't precise enough to forecast a month.
     """
     c = construction.dropna()
     c = c[c.index + pd.DateOffset(months=2) <= pd.Timestamp(asof)]
@@ -81,17 +81,12 @@ def supply_pipeline(construction: pd.Series, asof) -> dict:
     latest = c.index[-1]
     g_now, g_3m = growth.iloc[-1], growth.iloc[-4]
     direction = "accelerating" if g_now - g_3m > 5 else "slowing" if g_now - g_3m < -5 else "steady"
-    implication = {"accelerating": "a looser market", "slowing": "a tighter market",
-                   "steady": "no change in how tight the market is"}[direction]
-    effect_month = latest + pd.DateOffset(months=SUPPLY_LEAD_MONTHS)
     return {
         "latest_month": latest.strftime("%Y-%m"),
         "spending_bn_annual_rate": round(float(c.iloc[-1]) / 1000, 1),
         "growth_yoy_%": round(float(g_now), 1),
         "growth_yoy_3m_ago_%": round(float(g_3m), 1),
         "direction": direction,
-        "points_to": f"{implication} around {effect_month:%B %Y}",
-        "effect_month": effect_month.strftime("%B %Y"),
     }
 
 
